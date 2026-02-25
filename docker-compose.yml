@@ -10,6 +10,7 @@ services:
       - ./:/var/www/html
     depends_on:
       - mysql
+    user: "${UID:-1000}:${GID:-1000}"      
     # The app service runs PHP-FPM for executing Laravel code.
 
   nginx:
