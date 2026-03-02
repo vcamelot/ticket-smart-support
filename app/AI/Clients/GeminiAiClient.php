@@ -30,10 +30,6 @@ class GeminiAiClient implements AiClientInterface
 
         $url = "{$this->baseUrl}/{$this->model}:generateContent";
 
-        $response = Http::timeout(30)
-            ->withQueryParameters(['key' => $this->apiKey])
-            ->post($url, $payload);
-
         $systemPrompt = TicketAnalysisPrompt::systemPrompt();
         $userPrompt = TicketAnalysisPrompt::userPrompt($title, $description);
 
@@ -57,7 +53,9 @@ class GeminiAiClient implements AiClientInterface
         ];
 
         try {
-            $response = Http::timeout(30)->post($url, $payload);
+            $response = Http::timeout(30)
+                ->withQueryParameters(['key' => $this->apiKey])
+                ->post($url, $payload);
 
             if (!$response->successful()) {
                 throw new \Exception('HTTP request to Gemini API failed: ' . $response->body());
