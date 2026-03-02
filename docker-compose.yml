@@ -13,6 +13,20 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     # The app service runs PHP-FPM for executing Laravel code.
 
+  worker:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: smart_support_worker
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - mysql
+    user: "${UID:-1000}:${GID:-1000}"
+    command: php artisan queue:work --sleep=1 --tries=3 --timeout=60
+
   nginx:
     image: nginx:alpine
     container_name: smart_support_nginx

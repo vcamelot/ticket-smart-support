@@ -7,14 +7,14 @@ use App\Http\Requests\StoreTicketRequest;
 use App\Http\Resources\TicketResource;
 use App\Models\Ticket;
 use App\Enums\TicketStatus;
-use App\AI\AiClientInterface;
+use App\Jobs\EnrichTicketWithAi;
 
 class TicketController extends Controller
 {
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreTicketRequest $request, AiClientInterface $aiClient)
+    public function store(StoreTicketRequest $request)
     {
         $ticket = Ticket::create([
             'title' => $request->validated('title'),
@@ -22,14 +22,7 @@ class TicketController extends Controller
             'status' => TicketStatus::Open,
         ]);
 
-        $analysis = $aiClient->analyzeTicket($ticket->title, $ticket->description);
-
-        $ticket->update([
-            'category' => $analysis->category,
-            'sentiment' => $analysis->sentiment,
-            'urgency' => $analysis->urgency,
-            'suggested_reply' => $analysis->reply,
-        ]);
+        EnrichTicketWithAi::dispatch($ticket->id);
 
         return (new TicketResource($ticket->fresh()))
             ->response()
