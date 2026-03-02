@@ -12,6 +12,8 @@ services:
       - mysql
     user: "${UID:-1000}:${GID:-1000}"
     # The app service runs PHP-FPM for executing Laravel code.
+    environment:
+      HOME: /tmp    
 
   worker:
     build:
@@ -26,6 +28,8 @@ services:
       - mysql
     user: "${UID:-1000}:${GID:-1000}"
     command: php artisan queue:work --sleep=1 --tries=3 --timeout=60
+    environment:
+      HOME: /tmp    
 
   nginx:
     image: nginx:alpine
