@@ -9,6 +9,7 @@ A prototype Helpdesk backend built with Laravel 11 and PHP 8.4, running entirely
    ```bash
    docker compose up -d --build
    ```
+   > This also starts a background queue `worker` container for async AI enrichment.
 3. Install Laravel dependencies inside the container:
    ```bash
    docker compose exec app composer install
@@ -32,6 +33,7 @@ A prototype Helpdesk backend built with Laravel 11 and PHP 8.4, running entirely
    ```
 
 ### Clean reset (optional)
+
 If you want to start from scratch (drops DB volume):
 ```bash
 docker compose down -v
@@ -44,6 +46,12 @@ docker compose exec app php artisan migrate
 Ticket creation is designed to be fast and non-blocking. When a ticket is created via the API, it is immediately persisted to the database and a `201 Created` response is returned. The AI fields (category, sentiment, urgency, suggested_reply) will initially be `null`.
 
 At the same time, an asynchronous job (`EnrichTicketWithAi`) is dispatched to the Laravel database queue. The `worker` container automatically picks up this job, sends the ticket data to the configured AI provider, and updates the ticket in the background.
+
+## Key Decisions
+
+- **Async enrichment via queue:** API responds fast with `201 Created`, while AI enrichment runs in the background (`EnrichTicketWithAi` job processed by the `worker` container).
+- **Provider-agnostic AI contract:** the app depends on `AiClientInterface`; providers can be swapped via `.env` without changing business logic.
+- **Strict structured output:** AI output is normalized and validated via `AiTicketAnalysisDTO` before persisting.
 
 ## API Usage
 
@@ -86,13 +94,18 @@ GEMINI_MODEL=gemini-1.5-pro
 ```
 *After changing the `.env`, clear caches: `docker compose exec app php artisan optimize:clear`*
 
+Verify DI resolves the configured provider:
+```bash
+docker compose exec app php artisan tinker --execute='dump(config("ai.provider")); dump(app(\App\AI\AiClientInterface::class)::class);'
+```
+
 ## Prompt Strategy
 
 The application uses a strict and robust prompt strategy to ensure reliable data extraction from the LLM:
 - **System Instructions:** The LLM is instructed to act as a "Helpful Customer Support Agent" and strictly output **only** valid JSON. No markdown formatting or explanations are permitted.
 - **Strict JSON Schema:** The prompt explicitly defines the expected JSON structure and limits the allowed enum values for `category`, `sentiment`, and `urgency`.
 - **Prompt Injection Resistance:** The system prompt explicitly commands the LLM to ignore any instructions inside the user's ticket text that attempt to override the system instructions.
-- **Robust JSON Extraction & DTO Validation:** Even if the LLM returns extra text (e.g. markdown/code fences), the `GeminiAiClient` strips surrounding text to extract the JSON. The payload is then strictly validated through the `AiTicketAnalysisDTO` layer before touching the database.
+- **Robust JSON Extraction & DTO Validation:** Even if the LLM returns extra text (e.g. markdown/code fences), the AI client strips surrounding text to extract the JSON. The payload is then strictly validated through the `AiTicketAnalysisDTO` layer before touching the database.
 
 ## Running Tests
 
@@ -113,6 +126,8 @@ services:
     ports:
       - "3307:3306"
 ```
+The project `.gitignore` already ignores `docker-compose.override.yml`.
+
 Restart containers:
 ```bash
 docker compose up -d
